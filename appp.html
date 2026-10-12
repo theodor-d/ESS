@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Elysium Stress Support (ESS) + LINE</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --purple: #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      line-height: 1.5;
+    }
+    .container { max-width: 420px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; text-align: center; margin-bottom: 4px; }
+    .subtitle { text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .status { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 0.95rem; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: #64748b; }
+    .dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .dot.connecting { background: var(--yellow); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    button {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-connect { background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; }
+    .btn-disconnect { background: #334155; color: var(--text); margin-top: 8px; }
+    .btn-test { background: #475569; color: var(--text); margin-top: 8px; font-size: 0.9rem; padding: 10px; }
+    .level-box {
+      text-align: center; padding: 24px 16px; border-radius: 16px;
+      margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;
+    }
+    .level-0 { background: rgba(34, 197, 94, 0.15); color: var(--green); border: 2px solid var(--green); }
+    .level-1 { background: rgba(234, 179, 8, 0.15); color: var(--yellow); border: 2px solid var(--yellow); }
+    .level-2 { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 2px solid var(--red); }
+    .level-3 { background: rgba(168, 85, 247, 0.15); color: var(--purple); border: 2px solid var(--purple); }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .metric {
+      background: rgba(15, 23, 42, 0.6); border-radius: 12px;
+      padding: 14px; text-align: center;
+    }
+    .metric-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 4px; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; }
+
+    /* ===== Countdown ===== */
+    .countdown-box {
+      margin-top: 16px;
+      padding: 14px;
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      text-align: center;
+    }
+    .countdown-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .countdown-value {
+      font-size: 2.6rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.3s;
+    }
+    .countdown-value.stale { color: var(--yellow); }
+    .countdown-value.waiting { color: var(--muted); font-size: 1.1rem; font-weight: 600; }
+    .countdown-unit { font-size: 0.85rem; color: var(--muted); margin-left: 4px; }
+    .countdown-bar {
+      margin-top: 10px;
+      height: 6px;
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .countdown-bar-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+      transition: width 1s linear, background 0.3s;
+      border-radius: 999px;
+    }
+    .countdown-bar-fill.stale {
+      background: linear-gradient(90deg, #eab308, #f59e0b);
+    }
+    .countdown-bar-fill.waiting {
+      background: linear-gradient(90deg, #64748b, #475569);
+      width: 100% !important;
+      animation: pulse 1.5s infinite;
+    }
+
+    .log {
+      max-height: 180px; overflow-y: auto; font-family: ui-monospace, monospace;
+      font-size: 0.75rem; color: var(--muted); background: rgba(0,0,0,0.25);
+      border-radius: 10px; padding: 10px; margin-top: 12px;
+    }
+    .log div { margin-bottom: 4px; }
+    .advice {
+      margin-top: 12px; padding: 12px; border-radius: 10px;
+      background: rgba(56, 189, 248, 0.1); border-left: 4px solid var(--accent); font-size: 0.9rem;
+    }
+    .updated-info { margin-top: 10px; font-size: 0.75rem; color: var(--muted); text-align: center; }
+    .updated-info.stale { color: var(--yellow); }
+    .config-box {
+      background: rgba(6, 199, 85, 0.08); border: 1px solid rgba(6, 199, 85, 0.3);
+      border-radius: 12px; padding: 14px; margin-bottom: 16px; font-size: 0.85rem;
+    }
+    .config-box label { display: block; color: var(--muted); margin-bottom: 4px; font-size: 0.75rem; }
+    .config-box input {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #334155;
+      background: #0f172a; color: var(--text); font-size: 0.85rem; margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Elysium Stress Support</h1>
+    <p class="subtitle">micro:bit + LINE Bot แจ้งเตือน</p>
+
+    <div class="card">
+      <div class="config-box">
+        <label>Google Apps Script Web App URL</label>
+        <input type="url" id="gasUrl" value="" />
+        <button class="btn-test" onclick="saveGasUrl()">บันทึก URL</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="status">
+        <div class="dot" id="statusDot"></div>
+        <span id="statusText">ยังไม่ได้เชื่อมต่อ</span>
+      </div>
+      <button class="btn-connect" id="connectBtn" onclick="connect()">เชื่อมต่อ micro:bit</button>
+      <button class="btn-disconnect" id="disconnectBtn" onclick="disconnect()" style="display:none;">ตัดการเชื่อมต่อ</button>
+    </div>
+
+    <div class="card" id="dataCard" style="display:none;">
+      <div class="level-box level-0" id="levelBox">กำลังรอข้อมูล...</div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">อัตราการเต้นหัวใจ</div>
+          <div class="metric-value" id="hrValue">--</div>
+          <div class="metric-label">bpm</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">HRV (RMSSD)</div>
+          <div class="metric-value" id="hrvValue">--</div>
+          <div class="metric-label">ms</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">การเคลื่อนไหว</div>
+          <div class="metric-value" id="movValue">--</div>
+          <div class="metric-label">mg</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">ระดับความเครียด</div>
+          <div class="metric-value" id="levelValue">--</div>
+        </div>
+      </div>
+
+      <!-- ===== Countdown ===== -->
+      <div class="countdown-box">
+        <div class="countdown-label">รอบถัดไป</div>
+        <div class="countdown-value waiting" id="cdValue">รอการแตะนิ้ว...</div>
+        <div class="countdown-bar">
+          <div class="countdown-bar-fill waiting" id="cdBar"></div>
+        </div>
+      </div>
+
+      <div class="advice" id="adviceBox">รอข้อมูลจากเซ็นเซอร์...</div>
+      <div class="updated-info" id="updatedInfo"></div>
+      <div class="log" id="logBox"></div>
+    </div>
+  </div>
+
+  <script>
+    const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+    const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyqxi-trNUYUR2miDWF_mBjKRfF0au-XNnT4nQfLzbBOLE1bvvdgna5sCLbXiKNjXSx/exec";
+
+    let GAS_WEBAPP_URL = localStorage.getItem("ess_gas_url") || DEFAULT_GAS_URL;
+
+    const EXPECTED_INTERVAL_SEC = 15;
+    const NOTIFY_MIN_LEVEL = 1;
+
+    const CONTENT = {
+      0: { title: "😌 ปกติ / พักผ่อน", colorClass: "level-0", advice: "ร่างกายอยู่ในสภาวะผ่อนคลาย รักษาจังหวะการหายใจช้าๆ ไว้" },
+      1: { title: "😐 เครียดเล็กน้อย", colorClass: "level-1", advice: "ลองหายใจลึก 4 วินาที กลั้น 4 วินาที ผ่อน 6 วินาที สัก 1-2 นาที" },
+      2: { title: "😣 เครียดสูง", colorClass: "level-2", advice: "หยุดพักทันที หายใจช้าๆ หรือลุกไปเดินเบาๆ สักครู่" },
+      3: { title: "🐰 กำลังเคลื่อนไหว", colorClass: "level-3", advice: "ตรวจพบการเคลื่อนไหวสูง อาจเป็น light activity (ไม่ใช่ความเครียด)" }
+    };
+
+    let device = null, server = null, txCharacteristic = null;
+    let lastUpdateAt = null, tickTimer = null, wakeLock = null;
+
+    document.getElementById("gasUrl").value = GAS_WEBAPP_URL;
+
+    function saveGasUrl() {
+      GAS_WEBAPP_URL = document.getElementById("gasUrl").value.trim();
+      localStorage.setItem("ess_gas_url", GAS_WEBAPP_URL);
+      alert(GAS_WEBAPP_URL ? "บันทึก URL เรียบร้อย" : "ล้าง URL แล้ว");
+    }
+
+    function setStatus(text, state = "idle") {
+      document.getElementById("statusText").textContent = text;
+      const dot = document.getElementById("statusDot");
+      dot.className = "dot";
+      if (state === "connected") dot.classList.add("connected");
+      if (state === "connecting") dot.classList.add("connecting");
+    }
+
+    function log(msg) {
+      const box = document.getElementById("logBox");
+      const time = new Date().toLocaleTimeString("th-TH", { hour12: false });
+      const line = document.createElement("div");
+      line.textContent = `[${time}] ${msg}`;
+      box.prepend(line);
+      while (box.children.length > 30) box.removeChild(box.lastChild);
+    }
+
+    function updateUI(data) {
+      lastUpdateAt = Date.now();
+      startTicker();
+      const level = data.S;
+      const content = CONTENT[level] || CONTENT[0];
+      const levelBox = document.getElementById("levelBox");
+      levelBox.className = `level-box ${content.colorClass}`;
+      levelBox.textContent = content.title;
+      document.getElementById("hrValue").textContent = data.HR || "--";
+      document.getElementById("hrvValue").textContent = data.HRV || "--";
+      document.getElementById("movValue").textContent = (data.MOV !== undefined ? data.MOV : "--");
+      document.getElementById("levelValue").textContent = level;
+      document.getElementById("adviceBox").textContent = content.advice;
+      document.getElementById("dataCard").style.display = "block";
+
+      // ส่ง LINE ทุกครั้งที่ตรวจพบความเครียดระดับ 1 ขึ้นไป — ไม่มี cooldown
+      if (level >= NOTIFY_MIN_LEVEL) {
+        sendToLine(data);
+      }
+    }
+
+    function parseMessage(str) {
+      const result = {};
+      str.trim().split(",").forEach(part => {
+        const [key, value] = part.split(":");
+        if (key && value !== undefined) result[key] = isNaN(value) ? value : Number(value);
+      });
+      return result;
+    }
+
+    function sendToLine(data) {
+      if (!GAS_WEBAPP_URL) return;
+      const params = {
+        level: data.S || 0,
+        hr: data.HR || 0,
+        hrv: data.HRV || 0,
+        mov: data.MOV || 0
+      };
+      const qs = new URLSearchParams(params).toString();
+      const url = GAS_WEBAPP_URL + (GAS_WEBAPP_URL.includes("?") ? "&" : "?") + qs + "&_t=" + Date.now();
+      try {
+        let frame = document.getElementById("lineFrame");
+        if (!frame) {
+          frame = document.createElement("iframe");
+          frame.id = "lineFrame";
+          frame.style.cssText = "position:absolute;width:0;height:0;border:0;visibility:hidden";
+          document.body.appendChild(frame);
+        }
+        frame.src = url;
+        log("LINE → level " + (data.S || 0) + " (HR " + (data.HR || 0) + ")");
+      } catch (err) {
+        try {
+          const img = new Image();
+          img.src = url;
+          log("LINE → level " + (data.S || 0) + " (img)");
+        } catch (e2) {}
+      }
+    }
+
+    async function connect() {
+      if (!navigator.bluetooth) {
+        alert("เบราว์เซอร์นี้ไม่รองรับ Web Bluetooth\nใช้ Chrome บน Android / Windows / Mac / Linux");
+        return;
+      }
+      try {
+        autoReconnect = true;
+        setStatus("กำลังค้นหา micro:bit...", "connecting");
+        document.getElementById("connectBtn").disabled = true;
+
+        device = await navigator.bluetooth.requestDevice({
+          filters: [{ namePrefix: "BBC micro:bit" }],
+          optionalServices: [UART_SERVICE]
+        });
+        device.addEventListener("gattserverdisconnected", onDisconnected);
+
+        setStatus("กำลังเชื่อมต่อ...", "connecting");
+        server = await device.gatt.connect();
+
+        setStatus("กำลังค้นหา UART Service...", "connecting");
+        const service = await server.getPrimaryService(UART_SERVICE);
+
+        setStatus("กำลังเปิดการแจ้งเตือน...", "connecting");
+        const candidates = [UART_TX, UART_RX];
+        let subscribed = false;
+        let lastCharErr = null;
+        for (const uuid of candidates) {
+          try {
+            const ch = await service.getCharacteristic(uuid);
+            await ch.startNotifications();
+            ch.addEventListener("characteristicvaluechanged", handleNotification);
+            txCharacteristic = ch;
+            subscribed = true;
+            break;
+          } catch (charErr) {
+            lastCharErr = charErr;
+          }
+        }
+        if (!subscribed) {
+          throw lastCharErr || new Error("ไม่พบ characteristic ที่รองรับ notify");
+        }
+
+        setStatus("เชื่อมต่อแล้ว ✓", "connected");
+        document.getElementById("connectBtn").style.display = "none";
+        document.getElementById("disconnectBtn").style.display = "block";
+        document.getElementById("dataCard").style.display = "block";
+        setCountdownWaiting();
+        requestWakeLock();
+        log("เชื่อมต่อสำเร็จ");
+      } catch (err) {
+        console.error(err);
+        setStatus("เชื่อมต่อล้มเหลว", "idle");
+        document.getElementById("connectBtn").disabled = false;
+        const msg = err.message || String(err);
+        if (!msg.includes("cancelled") && !msg.includes("User cancelled")) {
+          alert(
+            "เชื่อมต่อไม่สำเร็จ\n\n" +
+            "1. MakeCode → Project Settings → No Pairing Required\n" +
+            "2. แฟลชโปรแกรมใหม่ + เปิดโหมด Bluetooth\n" +
+            "3. ลืมอุปกรณ์เก่าใน Settings → Bluetooth\n" +
+            "4. โปรแกรมต้องมี bluetooth.startUartService()\n\n" +
+            "รายละเอียด: " + msg
+          );
+        }
+      }
+    }
+
+    function handleNotification(event) {
+      const value = new TextDecoder("utf-8").decode(event.target.value);
+      const data = parseMessage(value);
+      if (data.S !== undefined) updateUI(data);
+    }
+
+    let autoReconnect = true;
+    let reconnectTimer = null;
+
+    function onDisconnected() {
+      setStatus("ตัดการเชื่อมต่อแล้ว", "idle");
+      document.getElementById("connectBtn").style.display = "block";
+      document.getElementById("connectBtn").disabled = false;
+      document.getElementById("disconnectBtn").style.display = "none";
+      txCharacteristic = null;
+      server = null;
+      stopTicker();
+      releaseWakeLock();
+      setCountdownWaiting();
+
+      if (autoReconnect && device) {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(async () => {
+          try {
+            if (!device.gatt.connected) {
+              setStatus("กำลังเชื่อมใหม่...", "connecting");
+              server = await device.gatt.connect();
+              const service = await server.getPrimaryService(UART_SERVICE);
+              const candidates = [UART_TX, UART_RX];
+              for (const uuid of candidates) {
+                try {
+                  const ch = await service.getCharacteristic(uuid);
+                  await ch.startNotifications();
+                  ch.addEventListener("characteristicvaluechanged", handleNotification);
+                  txCharacteristic = ch;
+                  break;
+                } catch (e) {}
+              }
+              if (txCharacteristic) {
+                setStatus("เชื่อมต่อแล้ว ✓", "connected");
+                document.getElementById("connectBtn").style.display = "none";
+                document.getElementById("disconnectBtn").style.display = "block";
+                requestWakeLock();
+                log("เชื่อมต่อใหม่อัตโนมัติสำเร็จ");
+              }
+            }
+          } catch (e) {
+            log("reconnect ไม่สำเร็จ: " + (e.message || e));
+          }
+        }, 1500);
+      }
+    }
+
+    async function disconnect() {
+      autoReconnect = false;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      if (device && device.gatt.connected) device.gatt.disconnect();
+      onDisconnected();
+    }
+
+    async function requestWakeLock() {
+      try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+    }
+    function releaseWakeLock() {
+      if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    }
+
+    // ===== Countdown helpers =====
+    function setCountdownWaiting() {
+      const cdVal = document.getElementById("cdValue");
+      const cdBar = document.getElementById("cdBar");
+      cdVal.textContent = "รอการแตะนิ้ว...";
+      cdVal.className = "countdown-value waiting";
+      cdBar.className = "countdown-bar-fill waiting";
+      cdBar.style.width = "100%";
+    }
+
+    function setCountdownNumber(sec, total) {
+      const cdVal = document.getElementById("cdValue");
+      const cdBar = document.getElementById("cdBar");
+      cdVal.className = "countdown-value";
+      cdBar.className = "countdown-bar-fill";
+      const pct = Math.max(0, Math.min(100, (sec / total) * 100));
+      cdBar.style.width = pct + "%";
+      if (sec > 0) {
+        cdVal.innerHTML = sec + '<span class="countdown-unit">วิ</span>';
+      } else {
+        cdVal.innerHTML = '0<span class="countdown-unit">วิ</span>';
+      }
+    }
+
+    function setCountdownStale(sec) {
+      const cdVal = document.getElementById("cdValue");
+      const cdBar = document.getElementById("cdBar");
+      cdVal.className = "countdown-value stale";
+      cdBar.className = "countdown-bar-fill stale";
+      cdVal.innerHTML = '--<span class="countdown-unit">รอสัญญาณ</span>';
+      cdBar.style.width = "100%";
+    }
+
+    function startTicker() {
+      if (tickTimer) return;
+      tickTimer = setInterval(() => {
+        const el = document.getElementById("updatedInfo");
+        if (!el || !lastUpdateAt) return;
+        const elapsedSec = Math.floor((Date.now() - lastUpdateAt) / 1000);
+        const remain = EXPECTED_INTERVAL_SEC - elapsedSec;
+        const timeStr = new Date(lastUpdateAt).toLocaleTimeString("th-TH", { hour12: false });
+
+        if (remain > 0) {
+          setCountdownNumber(remain, EXPECTED_INTERVAL_SEC);
+          el.textContent = `อัปเดตล่าสุด ${timeStr}`;
+          el.classList.remove("stale");
+        } else if (elapsedSec < EXPECTED_INTERVAL_SEC + 20) {
+          setCountdownNumber(0, EXPECTED_INTERVAL_SEC);
+          el.textContent = `อัปเดตล่าสุด ${timeStr} • กำลังรอข้อมูลรอบใหม่...`;
+          el.classList.remove("stale");
+        } else {
+          setCountdownStale(elapsedSec);
+          el.textContent = `ไม่มีข้อมูลใหม่ ${elapsedSec} วิ — แตะนิ้วที่เซ็นเซอร์`;
+          el.classList.add("stale");
+        }
+      }, 1000);
+    }
+    function stopTicker() {
+      if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+      const el = document.getElementById("updatedInfo");
+      if (el) el.textContent = "";
+    }
+  </script>
+</body>
+</html>
